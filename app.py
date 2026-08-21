@@ -16,9 +16,22 @@ st.markdown("ระบบคำนวณและเปรียบเทีย�
 st.sidebar.header("⚙️ การตั้งค่าราคา (Settings)")
 cny_rate = st.sidebar.number_input("อัตราแลกเปลี่ยน (THB/CNY)", value=5.0, step=0.1, format="%.2f")
 margin_factor = st.sidebar.number_input("ตัวคูณกำไร (Margin Factor)", value=2.75, step=0.05, format="%.2f")
+discount_pct = st.sidebar.number_input("ส่วนลด (% Discount)", value=0.0, step=1.0, max_value=100.0, min_value=0.0, format="%.1f")
 
 st.sidebar.markdown("---")
-st.sidebar.info(f"**สูตรคำนวณราคาขาย DOMINIC:**\n\n`ราคา THB = ราคา CNY x {cny_rate:.2f} x {margin_factor:.2f}`")
+if discount_pct > 0:
+    st.sidebar.info(f"**สูตรคำนวณราคาขาย DOMINIC:**\n\n`ราคา THB = (ราคา CNY x {cny_rate:.2f} x {margin_factor:.2f}) x (1 - {discount_pct/100:.2f})`")
+else:
+    st.sidebar.info(f"**สูตรคำนวณราคาขาย DOMINIC:**\n\n`ราคา THB = ราคา CNY x {cny_rate:.2f} x {margin_factor:.2f}`")
+
+# Helper function to calculate final price
+def calc_price(rmb, ex_proof=False):
+    base = rmb * cny_rate * margin_factor
+    if ex_proof:
+        base *= 1.10
+    if discount_pct > 0:
+        base *= (1.0 - (discount_pct / 100.0))
+    return base
 
 # Raw Data Setup
 mt_data = [
@@ -49,13 +62,17 @@ at_data = [
     {"Model": "D50", "RPM": 0.17, "Torque": 3100, "ISO": "F25", "RMB": 8520, "Rotork": "IQT3000", "AUMA": "SQ 15.2", "Market_Price": "360,000 - 500,000"}
 ]
 
-tab1, tab2 = st.tabs(["🔄 Multi-Turn Actuator", "🔄 Angular Travel (Part-Turn)"])
+parts_data = [
+    {"Item": "Motherboard", "Qty": 1, "RMB": 2100},
+    {"Item": "Encoder", "Qty": 1, "RMB": 390},
+    {"Item": "Proportional board", "Qty": 1, "RMB": 520},
+    {"Item": "Display screen", "Qty": 1, "RMB": 320},
+    {"Item": "Control panel", "Qty": 1, "RMB": 200},
+    {"Item": "Plastic knob", "Qty": 1, "RMB": 200},
+    {"Item": "4-20mA Input/Output Card (Option)", "Qty": 1, "RMB": 400}
+]
 
-def calc_price(rmb, ex_proof=False):
-    base = rmb * cny_rate * margin_factor
-    if ex_proof:
-        base *= 1.10
-    return base
+tab1, tab2, tab3 = st.tabs(["🔄 Multi-Turn Actuator", "🔄 Angular Travel (Part-Turn)", "🧩 Accessories & Parts"])
 
 with tab1:
     st.subheader("Multi-Turn Price Comparison Table")
@@ -68,12 +85,15 @@ with tab1:
             p_std = f"{calc_price(item['RMB_Min']):,.0f} - {calc_price(item['RMB_Max']):,.0f}"
             p_ex = f"{calc_price(item['RMB_Min'], True):,.0f} - {calc_price(item['RMB_Max'], True):,.0f}"
         
+        thrust_p = f"{calc_price(item['Thrust_RMB']):,.0f}"
+
         rows.append({
             "DOMINIC Model": item["Model"],
             "Torque (Nm)": item["Torque"],
             "ISO Flange": item["ISO"],
             "DOMINIC Standard (THB)": p_std,
             "DOMINIC Ex-proof (+10%) (THB)": p_ex,
+            "Thrust Seat Price (THB)": thrust_p,
             "ROTORK Model": item["Rotork"],
             "AUMA Model": item["AUMA"],
             "Rotork/AUMA Market Price (THB)": item["Market_Price"]
@@ -99,3 +119,17 @@ with tab2:
         })
     df_at = pd.DataFrame(rows_at)
     st.dataframe(df_at, use_container_width=True)
+
+with tab3:
+    st.subheader("DOMINIC Accessories & Spare Parts Price Catalog")
+    rows_parts = []
+    for item in parts_data:
+        p_std = f"{calc_price(item['RMB']):,.0f}"
+        rows_parts.append({
+            "Item Description": item["Item"],
+            "Qty": item["Qty"],
+            "Cost (RMB)": f"{item['RMB']:,}",
+            "DOMINIC Selling Price (THB)": p_std
+        })
+    df_parts = pd.DataFrame(rows_parts)
+    st.dataframe(df_parts, use_container_width=True)
